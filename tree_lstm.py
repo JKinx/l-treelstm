@@ -74,11 +74,9 @@ class BTreeLSTMBase(nn.Module):
         raise NotImplementedError
         
 class BTreeLSTMParser(BTreeLSTMBase):
-    def __init__(self, idim, hdim, tdim, gumbel_temperature, dropout_prob=None):
+    def __init__(self, idim, hdim, tdim, dropout_prob=None):
         super().__init__(idim, hdim, tdim, dropout_prob)
         self.q = nn.Parameter(torch.FloatTensor(hdim))
-        # temperature for gumbel softmax
-        self.gumbel_temperature = gumbel_temperature
         self.reset_parameters()
         
     def reset_parameters(self):
@@ -88,7 +86,7 @@ class BTreeLSTMParser(BTreeLSTMBase):
     def sample_composition(self, query_weights, mask):
         if self.training:
             # sample from gumbel_softmax if training
-            composition = gumbel_softmax(query_weights, self.gumbel_temperature, mask)
+            composition = gumbel_softmax(query_weights, mask)
         else:
             # greedy if not
             logits = masked_softmax(query_weights, mask)
@@ -148,6 +146,9 @@ class BTreeLSTMParser(BTreeLSTMBase):
 class BTreeLSTMComposer(BTreeLSTMBase):
     def __init__(self, idim, hdim, tdim, dropout_prob=None):
         super().__init__(idim, hdim, tdim, dropout_prob)
+    
+    def _transform_leafs(self, x, mask):
+        return self.linear(x).tanh().chunk(chunks=2, dim=-1)
     
     def forward(self, x, mask, tree_compositions):        
         # transform the leafs

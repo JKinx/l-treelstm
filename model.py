@@ -1,12 +1,13 @@
 import torch
 from torch import nn
+from itertools import chain
 from tree_lstm import BTreeLSTMParser, BTreeLSTMComposer
 
 class Model(nn.Module):
-    def __init__(self, vocab_size, idim, hdim, p_tdim, c_tdim, odim, gumbel_temperature):
+    def __init__(self, vocab_size, idim, hdim, p_tdim, c_tdim, odim):
         super().__init__()
         self.word_embeddings = nn.Embedding(vocab_size, idim)
-        self.parser = BTreeLSTMParser(idim, hdim, p_tdim, gumbel_temperature)
+        self.parser = BTreeLSTMParser(idim, hdim, p_tdim)
         self.tree_embeddings = nn.Embedding(vocab_size, idim)
         self.composer = BTreeLSTMComposer(idim, hdim, c_tdim)
         self.linear = nn.Linear(hdim, odim)
@@ -23,6 +24,12 @@ class Model(nn.Module):
         nn.init.constant_(self.linear.bias, val=0)
         self.parser.reset_parameters()
         self.composer.reset_parameters()
+        
+    def get_policy_parameters(self):
+        return list(chain(self.word_embeddings.parameters(), self.parser.parameters()))
+
+    def get_environment_parameters(self):
+        return list(chain(self.tree_embeddings.parameters(), self.composer.parameters(), self.linear.parameters()))
         
     def single_pass(self, x, mask, labels):
         tree_compositions, log_probs, entropy, norm_entropy = self.parser(self.word_embeddings(x), mask)
